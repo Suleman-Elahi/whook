@@ -24,6 +24,7 @@ These instructions will get you a copy of the project up and running on your loc
 ### Prerequisites
 
   * UV (https://docs.astral.sh/uv/getting-started/installation/) with or without python if you know how to install python using UV.
+  * [Garnet](https://github.com/microsoft/garnet) if you are on Windows or [Redis](https://github.com/redis/redis) server running.
 
 ### Installation & Running
 
