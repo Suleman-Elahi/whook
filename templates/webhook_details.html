@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webhook Details</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.1/cdn/themes/light.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='/css/webhook_details.css') }}" />
+    <script type="module"
+        src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.1/cdn/shoelace-autoloader.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+
+<body data-webhook-id="{{ webhook.id }}">
+    <div class="requests-list">
+        <center>
+            <h2>Requests</h2>
+        </center>
+        <div class="delete-all-container">
+            <sl-button class="delete-all-btn" variant="danger" outline>Delete All</sl-button>
+        </div>
+        <ul id="request-list">
+            {% for req in requests %}
+            <div class="req">
+                <li class="request-item" onclick="showRequest({{ req.id }})">
+                    {{ req.headers['User-Agent'] }} - {{ req.timestamp }}
+                </li>
+                <sl-icon class="deleteRequest" name="trash"></sl-icon>
+            </div>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="request-details">
+        <center>
+            <h2>Request Details</h2>
+        </center>
+        <div id="request-details">
+            <p>Select a request to see details.</p>
+        </div>
+    </div>
+
+    <sl-dialog class="delete-all-dialog" label="Delete All Webhooks">
+        Are you sure you want to delete all webhooks? This action cannot be undone.
+        <sl-button slot="footer" class="dialog-cancel-btn">Cancel</sl-button>
+        <sl-button slot="footer" class="dialog-confirm-btn" variant="danger">Delete</sl-button>
+    </sl-dialog>
+
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='/js/webhook_details.js') }}"></script>
+</body>
+
+</html>

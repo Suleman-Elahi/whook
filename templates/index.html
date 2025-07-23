@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="30" />
+    <title>Webhook Manager</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.1/cdn/themes/light.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='/css/index.css') }}" />
+    <script type="module"  src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.1/cdn/shoelace-autoloader.js"></script>
+
+</head>
+
+<body>
+    <h2>Webhooks:</h2>
+    <sl-input id="searchBox" style="width:30%;margin:0 auto;" placeholder="Type something">
+        <sl-icon name="search" slot="prefix"></sl-icon>
+    </sl-input>
+    <div class="content">
+        <div class="webhook-list">
+            <ul id="webhook-list">
+                {% for webhook in webhooks %}
+                <li class="webhook-item"><a class="webhook-link" href="{{ webhook.url }}" target="_blank">
+                        <strong>{{ webhook.name }}</strong> -
+                        {{ webhook.url }} ({{ webhook.request_count }})
+                    </a>
+                    {% if webhook.status %}
+                    <sl-badge variant="warning" id="pause-webhook" pill><sl-icon name="pause"></sl-icon></sl-badge>
+                    <sl-badge variant="danger" id="delete-webhook" pill><sl-icon name="trash"></sl-icon></sl-badge>
+                    <a href="/settings/{{ webhook.url }}"><sl-badge variant="neutral" id="settings-webhook" pill><sl-icon name="gear"></sl-icon></sl-badge></a>
+                    <sl-copy-button value="{{ request.url_root }}{{ webhook.url }}"></sl-copy-button>
+                    {% else %}
+                    <sl-badge variant="success" id="pause-webhook" pill><sl-icon name="play"></sl-icon></sl-badge>
+                    <sl-badge variant="danger" id="delete-webhook" pill><sl-icon name="trash"></sl-icon></sl-badge>
+                    <a href="/settings/{{ webhook.url }}"><sl-badge variant="neutral" id="settings-webhook" pill><sl-icon name="gear"></sl-icon></sl-badge></a>
+                    <sl-copy-button value="{{ request.url_root }}{{ webhook.url }}"></sl-copy-button>
+                    {% endif %}
+                </li>
+
+
+                {% endfor %}
+            </ul>
+        </div>
+        <sl-dialog label="Confirm Deletion" class="delete-dialog">
+            Are you sure you want to delete this webhook?
+            <sl-button slot="footer" class="confirm-delete" variant="danger">Delete</sl-button>
+            <sl-button slot="footer" class="cancel-delete" variant="primary">Cancel</sl-button>
+        </sl-dialog>
+        <sl-alert variant="success" duration="3000" closable>
+            <sl-icon slot="icon" name="check2-circle"></sl-icon>
+            <strong>Webhook is activated!</strong><br />
+        </sl-alert>
+        <sl-alert variant="warning" duration="3000" closable>
+            <sl-icon slot="icon" name="exclamation-triangle"></sl-icon>
+            <strong>Webhook is paused!</strong><br />
+        </sl-alert>
+        <sl-alert variant="danger" duration="3000" closable>
+            <sl-icon slot="icon" name="exclamation-octagon"></sl-icon>
+            <strong>The webhook has been deleted</strong><br />
+        </sl-alert>
+
+
+    </div>
+    <button class="floating-button" onclick="openPopup()">+</button>
+    <sl-dialog label="Create a new webhook.." class="dialog-overview"
+        style="--header-spacing:5px;--body-spacing:5px;--footer-spacing:5px;">
+        <sl-input id="webhook-name" label="Name:"></sl-input>
+        <p id="webhook-url"></p>
+        <sl-button onclick="generateWebhook()" slot="footer" variant="primary">Generate Webhook</sl-button>
+        <sl-button onclick="closePopup()" slot="footer" variant="danger">Close</sl-button>
+    </sl-dialog>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='/js/index.js') }}"></script>
+</body>
+
+</html>

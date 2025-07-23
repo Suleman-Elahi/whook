@@ -1,0 +1,73 @@
+body {
+    height: 50vh;
+}
+
+h2 {
+    text-align: center;
+}
+
+.content {
+    width: 50%;
+    max-width: 98.57rem;
+    margin: 2rem auto;
+    box-shadow: -1px 0px 6px 0px rgba(0, 0, 0, 0.75);
+    height: 70vh;
+    min-height: 100%;
+    overflow: scroll;
+    border-radius: 5px;
+    scrollbar-width: none;
+}
+
+.floating-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #000000;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    font-size: 30px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.webhook-item {
+    margin-bottom: 20px;
+}
+
+li a.webhook-link:active {
+    transform: scale(0.98);
+    box-shadow: 3px 2px 22px 1px rgba(0, 0, 0, 0.24);
+}
+
+li {
+    list-style-type: none;
+}
+
+.webhook-link {
+    list-style-type: none;
+    border: 1px solid black;
+    padding: 5px;
+    margin: 5px 5px;
+    box-shadow: 2px 2px;
+    cursor: pointer;
+    font-family: monospace;
+    text-decoration: none;
+}
+
+.hidden {
+    display: none;
+}
+
+sl-badge {
+    cursor: pointer;
+}
+
+sl-badge:active {
+    transform: scale(0.98);
+    box-shadow: 3px 2px 22px 1px rgba(0, 0, 0, 0.24);
+}
