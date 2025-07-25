@@ -54,8 +54,19 @@ Whook allows you to define custom code (e.g., Python functions) to transform the
 
 **Example Transformation Code (Conceptual):**
 
-```javascript// This is an example. The actual implementation will depend on Whook's UI/API.
-
+```python// This is an example. The actual implementation will depend on Whook's UI/API.
+  def transform(data):
+       # Create a new dictionary with selected data
+       new_payload = {
+           'event_type': data.get('type'),
+           'user_id': data.get('user', {}).get('id'),
+           'processed_by_script': True
+       }
+       # Add a new field
+       if 'message' in data:
+           new_payload['summary'] = data['message'][:20] + '...'
+   
+       return new_payload
 ```
 
 -----
