@@ -258,7 +258,7 @@ async def webhook_settings(webhook_id: str, request: Request):
         webhook.transformation_script = form_data.get("transformation_script")
         db.commit()
         db.close()
-        return RedirectResponse(url=f"/settings/{webhook.url}", status_code=303)
+        return RedirectResponse(url=f"/settings/{webhook.url}?saved=true", status_code=303)
     
     destinations = ", ".join([d.url for d in webhook.destinations])
     db.close()
