@@ -1,5 +1,9 @@
 # 📖 Whook: Self-Hosted Webhook Manager
 
+![Whook Dashboard](https://res.cloudinary.com/suleman/image/upload/v1769874888/whook_dashboard_mglref.png)
+
+![Whook Request Details](https://res.cloudinary.com/suleman/image/upload/v1769874888/whook_request_details_ni4csf.png)
+
 Whook is a high-performance, self-hosted webhook management system built with **FastAPI**. Supports SQLite, PostgreSQL, and MySQL/MariaDB. Features real-time monitoring, background processing, Google SSO authentication, and multi-user support.
 
 ## ✨ Features
