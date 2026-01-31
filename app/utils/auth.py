@@ -18,8 +18,8 @@ def require_auth(request: Request) -> dict:
     return user
 
 
-async def get_or_create_user(email: str, name: str, picture: str, google_id: str) -> User:
-    """Get existing user or create new one"""
+async def get_or_create_user(email: str, name: str, picture: str, google_id: str) -> dict:
+    """Get existing user or create new one, returns user data dict"""
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.google_id == google_id).first()
@@ -44,7 +44,15 @@ async def get_or_create_user(email: str, name: str, picture: str, google_id: str
             if picture:
                 user.picture = picture
             db.commit()
+            db.refresh(user)
         
-        return user
+        # Return a dict instead of the ORM object
+        return {
+            'id': user.id,
+            'email': user.email,
+            'name': user.name,
+            'picture': user.picture,
+            'google_id': user.google_id
+        }
     finally:
         db.close()

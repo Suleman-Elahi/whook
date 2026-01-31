@@ -45,7 +45,7 @@ async def auth_callback(request: Request):
         if not user_info:
             raise HTTPException(status_code=400, detail="Failed to get user info")
         
-        # Get or create user
+        # Get or create user (returns dict)
         user = await get_or_create_user(
             email=user_info['email'],
             name=user_info.get('name'),
@@ -55,10 +55,10 @@ async def auth_callback(request: Request):
         
         # Store user in session
         request.session['user'] = {
-            'id': user.id,
-            'email': user.email,
-            'name': user.name,
-            'picture': user.picture
+            'id': user['id'],
+            'email': user['email'],
+            'name': user['name'],
+            'picture': user['picture']
         }
         
         return RedirectResponse(url="/")

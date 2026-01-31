@@ -39,6 +39,7 @@ class WebhookRequest(Base):
     webhook_id = Column(Integer, ForeignKey("webhook.id", ondelete="CASCADE"), nullable=False, index=True)
     headers = Column(Text, nullable=False)
     body = Column(Text, nullable=False)
+    query_params = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     webhook = relationship("Webhook", back_populates="requests")
     

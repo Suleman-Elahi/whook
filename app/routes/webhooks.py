@@ -28,7 +28,15 @@ async def index(request: Request):
         for webhook in webhooks:
             count = db.query(WebhookRequest).filter(WebhookRequest.webhook_id == webhook.id).count()
             webhook.request_count = count
-            print(f"Webhook {webhook.id} ({webhook.name}): {count} requests")
+            
+            # Get the most recent request timestamp
+            last_request = db.query(WebhookRequest.timestamp)\
+                .filter(WebhookRequest.webhook_id == webhook.id)\
+                .order_by(WebhookRequest.timestamp.desc())\
+                .first()
+            webhook.last_activity = last_request[0] if last_request else None
+            
+            print(f"Webhook {webhook.id} ({webhook.name}): {count} requests, last activity: {webhook.last_activity}")
         
         db.close()
         return templates.TemplateResponse("index.html", {
@@ -171,12 +179,75 @@ async def delete_all_webhooks(request: Request):
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
 
+@router.get("/settings/{webhook_id}", response_class=HTMLResponse)
+async def webhook_settings_get(webhook_id: str, request: Request):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login")
+    
+    db = SessionLocal()
+    webhook = db.query(Webhook).filter(
+        Webhook.url == webhook_id,
+        Webhook.user_id == user['id']
+    ).first()
+    
+    if not webhook:
+        db.close()
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    
+    destinations = ", ".join([d.url for d in webhook.destinations])
+    db.close()
+    return templates.TemplateResponse("settings.html", {
+        "request": request,
+        "webhook": webhook,
+        "destinations": destinations,
+        "user": user
+    })
+
+
+@router.post("/settings/{webhook_id}")
+async def webhook_settings_post(webhook_id: str, request: Request):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login")
+    
+    db = SessionLocal()
+    webhook = db.query(Webhook).filter(
+        Webhook.url == webhook_id,
+        Webhook.user_id == user['id']
+    ).first()
+    
+    if not webhook:
+        db.close()
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    
+    form_data = await request.form()
+    
+    db.query(Destination).filter(Destination.webhook_id == webhook.id).delete()
+    
+    # Handle URLs separated by commas or newlines
+    raw_urls = form_data.get("destination_urls", "")
+    # Replace newlines with commas, then split
+    urls = raw_urls.replace('\n', ',').replace('\r', '').split(',')
+    for url in urls:
+        url = url.strip()
+        if url:
+            new_destination = Destination(url=url, webhook_id=webhook.id)
+            db.add(new_destination)
+    
+    webhook.transformation_script = form_data.get("transformation_script")
+    db.commit()
+    db.close()
+    return RedirectResponse(url=f"/settings/{webhook_id}?saved=true", status_code=303)
+
+
 @router.post("/{path:path}")
 async def handle_webhook(path: str, request: Request):
     """Handle incoming webhook - no auth required"""
     print(f"\n=== New Webhook Request ===")
     print(f"Path: {path}")
     print(f"Headers: {dict(request.headers)}")
+    print(f"Query params: {dict(request.query_params)}")
     
     db = SessionLocal()
     
@@ -195,6 +266,7 @@ async def handle_webhook(path: str, request: Request):
     
     try:
         headers = {k: v for k, v in request.headers.items()}
+        query_params = dict(request.query_params)
         body = await request.body()
         body_text = body.decode('utf-8') if body else ""
         
@@ -205,6 +277,7 @@ async def handle_webhook(path: str, request: Request):
             webhook.id,
             headers,
             body_text,
+            query_params,
             job_timeout=30,
             result_ttl=3600
         )
@@ -227,51 +300,12 @@ async def handle_webhook(path: str, request: Request):
         raise HTTPException(status_code=500, detail="Failed to process webhook")
 
 
-@router.get("/settings/{webhook_id}", response_class=HTMLResponse)
-@router.post("/settings/{webhook_id}")
-async def webhook_settings(webhook_id: str, request: Request):
-    user = get_current_user(request)
-    if not user:
-        return RedirectResponse(url="/login")
-    
-    db = SessionLocal()
-    webhook = db.query(Webhook).filter(
-        Webhook.url == webhook_id,
-        Webhook.user_id == user['id']
-    ).first()
-    
-    if not webhook:
-        db.close()
-        raise HTTPException(status_code=404, detail="Webhook not found")
-    
-    if request.method == "POST":
-        form_data = await request.form()
-        
-        db.query(Destination).filter(Destination.webhook_id == webhook.id).delete()
-        
-        urls = form_data.get("destination_urls", "").split(',')
-        for url in urls:
-            if url.strip():
-                new_destination = Destination(url=url.strip(), webhook_id=webhook.id)
-                db.add(new_destination)
-        
-        webhook.transformation_script = form_data.get("transformation_script")
-        db.commit()
-        db.close()
-        return RedirectResponse(url=f"/settings/{webhook.url}?saved=true", status_code=303)
-    
-    destinations = ", ".join([d.url for d in webhook.destinations])
-    db.close()
-    return templates.TemplateResponse("settings.html", {
-        "request": request,
-        "webhook": webhook,
-        "destinations": destinations,
-        "user": user
-    })
-
-
 @router.get("/{path}")
 async def show_webhook(path: str, request: Request):
+    # Ignore favicon requests
+    if path == "favicon.ico":
+        raise HTTPException(status_code=404, detail="Not found")
+    
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login")
@@ -292,13 +326,19 @@ async def show_webhook(path: str, request: Request):
             
         print(f"Found webhook: {webhook.name} (ID: {webhook.id})")
         
+        # Get total count
+        total_requests = db.query(WebhookRequest)\
+                          .filter(WebhookRequest.webhook_id == webhook.id)\
+                          .count()
+        
+        # Get latest 100 requests
         requests_list = db.query(WebhookRequest)\
                           .filter(WebhookRequest.webhook_id == webhook.id)\
                           .order_by(WebhookRequest.timestamp.desc())\
                           .limit(100)\
                           .all()
         
-        print(f"Found {len(requests_list)} requests for webhook {webhook.id}")
+        print(f"Found {len(requests_list)}/{total_requests} requests for webhook {webhook.id}")
         
         for req in requests_list:
             try:
@@ -312,6 +352,7 @@ async def show_webhook(path: str, request: Request):
             "request": request,
             "webhook": webhook,
             "requests": requests_list,
+            "total_requests": total_requests,
             "user": user
         })
                              
@@ -322,6 +363,53 @@ async def show_webhook(path: str, request: Request):
         print(f"Error in show_webhook: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/webhook/{webhook_url}/requests")
+async def get_webhook_requests(webhook_url: str, request: Request, offset: int = 0, limit: int = 100):
+    """API endpoint to get paginated webhook requests"""
+    user = require_auth(request)
+    
+    db = SessionLocal()
+    try:
+        webhook = db.query(Webhook).filter(
+            Webhook.url == webhook_url,
+            Webhook.user_id == user['id']
+        ).first()
+        
+        if not webhook:
+            raise HTTPException(status_code=404, detail="Webhook not found")
+        
+        # Get total count
+        total = db.query(WebhookRequest).filter(
+            WebhookRequest.webhook_id == webhook.id
+        ).count()
+        
+        # Get paginated requests
+        requests_list = db.query(WebhookRequest)\
+            .filter(WebhookRequest.webhook_id == webhook.id)\
+            .order_by(WebhookRequest.timestamp.desc())\
+            .offset(offset)\
+            .limit(min(limit, 100))\
+            .all()
+        
+        result = {
+            "requests": [
+                {
+                    "id": req.id,
+                    "timestamp": req.timestamp.isoformat() + "Z" if req.timestamp else None,
+                    "body_length": len(req.body) if req.body else 0,
+                }
+                for req in requests_list
+            ],
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+            "has_more": offset + len(requests_list) < total
+        }
+        return JSONResponse(result)
+    finally:
+        db.close()
 
 
 @router.get("/webhook/request/{request_id}")
@@ -348,6 +436,7 @@ async def show_request(request_id: int, request: Request):
     result = {
         "headers": json.loads(req.headers),
         "body": req.body,
+        "query_params": json.loads(req.query_params) if req.query_params else {},
         "timestamp": req.timestamp.isoformat() if req.timestamp else None,
     }
     db.close()
@@ -391,3 +480,51 @@ async def debug_db_status():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get('/debug/failed-jobs')
+async def debug_failed_jobs():
+    """Debug endpoint to check failed RQ jobs"""
+    try:
+        from redis import Redis
+        from rq import Queue
+        from rq.registry import FailedJobRegistry, StartedJobRegistry
+        from app.core.config import settings
+        
+        # Use raw bytes connection for RQ
+        raw_conn = Redis.from_url(settings.REDIS_URL, decode_responses=False)
+        q = Queue(connection=raw_conn)
+        failed_registry = FailedJobRegistry(queue=q)
+        started_registry = StartedJobRegistry(queue=q)
+        
+        failed_job_ids = failed_registry.get_job_ids()
+        started_job_ids = started_registry.get_job_ids()
+        pending_job_ids = q.job_ids
+        
+        failed_jobs = []
+        for job_id in failed_job_ids[:10]:
+            job = q.fetch_job(job_id)
+            if job:
+                failed_jobs.append({
+                    'id': job_id,
+                    'func': str(job.func_name) if job.func_name else None,
+                    'exc_info': str(job.exc_info)[:500] if job.exc_info else None,
+                })
+        
+        raw_conn.close()
+        
+        return JSONResponse({
+            'queue_length': len(pending_job_ids),
+            'pending_jobs': pending_job_ids[:10],
+            'started_count': len(started_job_ids),
+            'started_jobs': started_job_ids[:10],
+            'failed_count': len(failed_job_ids),
+            'failed_jobs': failed_jobs
+        })
+        
+    except Exception as e:
+        import traceback
+        return JSONResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })

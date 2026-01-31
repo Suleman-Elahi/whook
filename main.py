@@ -6,6 +6,7 @@ Main application entry point
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 import asyncio
 
@@ -25,6 +26,12 @@ app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    """Return empty favicon to prevent 404 errors"""
+    return Response(status_code=204)
 
 # Include routers
 app.include_router(auth_router, tags=["Authentication"])

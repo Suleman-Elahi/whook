@@ -1,14 +1,14 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
-    container_name: webhooks_postgres
+    container_name: whook_postgres
     environment:
       POSTGRES_USER: webhook_user
       POSTGRES_PASSWORD: webhook_pass
       POSTGRES_DB: webhooks_db
-      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
@@ -20,9 +20,32 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # MariaDB Database (alternative to PostgreSQL)
+  mariadb:
+    image: mariadb:11
+    container_name: whook_mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: webhooks_db
+      MYSQL_USER: webhook_user
+      MYSQL_PASSWORD: webhook_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    profiles:
+      - mysql
+
+  # Redis (required for all setups)
   redis:
     image: redis:7-alpine
-    container_name: webhooks_redis
+    container_name: whook_redis
     ports:
       - "6379:6379"
     volumes:
@@ -35,10 +58,10 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Optional: pgAdmin for database management
+  # pgAdmin for PostgreSQL management (optional)
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: webhooks_pgadmin
+    container_name: whook_pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@webhooks.local
       PGADMIN_DEFAULT_PASSWORD: admin
@@ -50,15 +73,15 @@ services:
     depends_on:
       - postgres
     restart: unless-stopped
+    profiles:
+      - tools
 
 volumes:
   postgres_data:
-    driver: local
+  mariadb_data:
   redis_data:
-    driver: local
   pgadmin_data:
-    driver: local
 
 networks:
   default:
-    name: webhooks_network
+    name: whook_network

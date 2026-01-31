@@ -63,8 +63,28 @@ function connectWebSocket() {
 // Initialize connection
 connectWebSocket();
 
+// Convert UTC timestamps to local time
+function formatLocalTime(utcString) {
+    const date = new Date(utcString);
+    return date.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
 // DOM Ready
 document.addEventListener('DOMContentLoaded', function() {
+    // Convert all UTC timestamps to local time
+    document.querySelectorAll('.last-activity-time[data-utc]').forEach(el => {
+        const utc = el.dataset.utc;
+        if (utc) {
+            el.textContent = formatLocalTime(utc);
+        }
+    });
+
     const createDialog = document.querySelector('.create-dialog');
     const deleteDialog = document.querySelector('.delete-dialog');
     const successAlert = document.querySelector('.success-alert');

@@ -41,11 +41,12 @@ function connectWebSocket() {
                 console.log('Received new_webhook_request event:', data);
                 
                 const webhookId = document.body.dataset.webhookId;
-                if (data.webhook_id && data.webhook_id.toString() === webhookId) {
-                    console.log('New request for current webhook, reloading...');
-                    setTimeout(() => {
-                        location.reload();
-                    }, 300);
+                const receivedId = String(data.webhook_id);
+                console.log('Current webhook ID:', webhookId, 'Received webhook ID:', receivedId);
+                
+                if (receivedId === webhookId) {
+                    console.log('New request for current webhook, adding to list...');
+                    addNewRequestToList(data);
                 } else {
                     console.log('Request is for a different webhook, ignoring...');
                 }
@@ -56,8 +57,206 @@ function connectWebSocket() {
     };
 }
 
+function addNewRequestToList(data) {
+    const requestList = document.getElementById('request-list');
+    const emptyState = requestList.querySelector('.empty-state');
+    
+    // Remove empty state if present
+    if (emptyState) {
+        emptyState.remove();
+    }
+    
+    // Format timestamp
+    const timestamp = new Date(data.timestamp);
+    const timeStr = timestamp.toLocaleTimeString('en-US', { hour12: false });
+    const dateStr = timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    
+    // Create new request item
+    const newItem = document.createElement('div');
+    newItem.className = 'request-item';
+    newItem.setAttribute('data-request-id', data.request_id);
+    newItem.setAttribute('data-status', '200');
+    newItem.onclick = function() { showRequest(data.request_id); };
+    
+    newItem.innerHTML = `
+        <div class="request-header">
+            <sl-badge variant="primary" size="small">POST</sl-badge>
+            <sl-badge variant="success" size="small" class="status-badge">200 OK</sl-badge>
+            <span class="request-time">${dateStr}, ${timeStr}</span>
+        </div>
+        <div class="request-path">/${data.webhook_url}</div>
+        <div class="request-meta">
+            <span class="meta-item">
+                <sl-icon name="clock"></sl-icon>
+                ${timeStr}
+            </span>
+            <span class="meta-item">
+                <sl-icon name="hdd"></sl-icon>
+                -- bytes
+            </span>
+            <sl-icon-button name="trash" label="Delete" class="delete-request-btn" onclick="event.stopPropagation(); deleteRequest(${data.request_id})"></sl-icon-button>
+        </div>
+    `;
+    
+    // Insert at the top of the list
+    requestList.insertBefore(newItem, requestList.firstChild);
+    
+    // Update request count in sidebar header
+    const countSpan = document.querySelector('.sidebar-title span');
+    if (countSpan) {
+        const currentCount = parseInt(countSpan.textContent.match(/\d+/)?.[0] || '0');
+        countSpan.textContent = `REQUESTS (${currentCount + 1})`;
+    }
+    
+    // Update delete dialog count
+    const deleteCount = document.getElementById('delete-count');
+    if (deleteCount) {
+        deleteCount.textContent = parseInt(deleteCount.textContent || '0') + 1;
+    }
+    
+    // Flash animation
+    newItem.style.backgroundColor = '#e0f2fe';
+    setTimeout(() => {
+        newItem.style.transition = 'background-color 0.5s';
+        newItem.style.backgroundColor = '';
+    }, 100);
+}
+
 // Initialize connection
 connectWebSocket();
+
+// Convert UTC timestamps to local time
+function formatLocalDateTime(utcString) {
+    const date = new Date(utcString);
+    return date.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+}
+
+function formatLocalTime(utcString) {
+    const date = new Date(utcString);
+    return date.toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+}
+
+function convertTimestampsToLocal() {
+    // Convert request-time elements (date + time)
+    document.querySelectorAll('.request-time[data-utc]').forEach(el => {
+        const utc = el.dataset.utc;
+        if (utc) {
+            el.textContent = formatLocalDateTime(utc);
+        }
+    });
+    
+    // Convert meta-time elements (time only)
+    document.querySelectorAll('.meta-time[data-utc]').forEach(el => {
+        const utc = el.dataset.utc;
+        if (utc) {
+            el.textContent = formatLocalTime(utc);
+        }
+    });
+}
+
+// Convert timestamps on page load
+document.addEventListener('DOMContentLoaded', convertTimestampsToLocal);
+
+// Load more requests
+function loadMoreRequests() {
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    if (!loadMoreBtn) return;
+    
+    const webhookUrl = loadMoreBtn.dataset.webhookUrl;
+    const offset = parseInt(loadMoreBtn.dataset.offset) || 0;
+    const total = parseInt(loadMoreBtn.dataset.total) || 0;
+    
+    loadMoreBtn.loading = true;
+    
+    fetch(`/api/webhook/${webhookUrl}/requests?offset=${offset}&limit=100`)
+        .then(response => response.json())
+        .then(data => {
+            const requestList = document.getElementById('request-list');
+            const loadMoreContainer = document.getElementById('load-more-container');
+            
+            // Add new request items before the load more button
+            data.requests.forEach(req => {
+                const newItem = document.createElement('div');
+                newItem.className = 'request-item';
+                newItem.setAttribute('data-request-id', req.id);
+                newItem.setAttribute('data-status', '200');
+                newItem.onclick = function() { showRequest(req.id); };
+                
+                const timestamp = req.timestamp ? new Date(req.timestamp) : null;
+                const dateTimeStr = timestamp ? formatLocalDateTime(req.timestamp) : 'Unknown';
+                const timeStr = timestamp ? formatLocalTime(req.timestamp) : '--';
+                
+                newItem.innerHTML = `
+                    <div class="request-header">
+                        <sl-badge variant="primary" size="small">POST</sl-badge>
+                        <sl-badge variant="success" size="small" class="status-badge">200 OK</sl-badge>
+                        <span class="request-time">${dateTimeStr}</span>
+                    </div>
+                    <div class="request-path">/${webhookUrl}</div>
+                    <div class="request-meta">
+                        <span class="meta-item">
+                            <sl-icon name="clock"></sl-icon>
+                            <span class="meta-time">${timeStr}</span>
+                        </span>
+                        <span class="meta-item">
+                            <sl-icon name="hdd"></sl-icon>
+                            ${req.body_length} bytes
+                        </span>
+                        <sl-icon-button name="trash" label="Delete" class="delete-request-btn" onclick="event.stopPropagation(); deleteRequest(${req.id})"></sl-icon-button>
+                    </div>
+                `;
+                
+                requestList.insertBefore(newItem, loadMoreContainer);
+            });
+            
+            // Update offset and remaining count
+            const newOffset = offset + data.requests.length;
+            const remaining = total - newOffset;
+            
+            if (data.has_more && remaining > 0) {
+                loadMoreBtn.dataset.offset = newOffset;
+                loadMoreBtn.innerHTML = `
+                    <sl-icon slot="prefix" name="arrow-down-circle"></sl-icon>
+                    Load More (${remaining} remaining)
+                `;
+            } else {
+                // Remove load more button if no more requests
+                loadMoreContainer.remove();
+            }
+            
+            // Update sidebar count
+            const countSpan = document.querySelector('.sidebar-title span');
+            if (countSpan) {
+                countSpan.textContent = `REQUESTS (${newOffset}/${total})`;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading more requests:', error);
+        })
+        .finally(() => {
+            loadMoreBtn.loading = false;
+        });
+}
+
+// Initialize load more button
+document.addEventListener('DOMContentLoaded', function() {
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', loadMoreRequests);
+    }
+});
 
 // Show request details
 function showRequest(requestId) {
@@ -84,9 +283,26 @@ function showRequest(requestId) {
 }
 
 function updateRequestDetails(data) {
+    console.log('Updating request details:', data);
+    
     // Update stats bar
     document.getElementById('status-code').textContent = '200 OK';
-    document.getElementById('timestamp').textContent = data.timestamp || 'N/A';
+    
+    // Convert timestamp to local time
+    let displayTimestamp = data.timestamp || 'N/A';
+    if (data.timestamp) {
+        const date = new Date(data.timestamp);
+        displayTimestamp = date.toLocaleString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+    }
+    document.getElementById('timestamp').textContent = displayTimestamp;
     document.getElementById('response-time').textContent = '245ms';
     document.getElementById('size').textContent = `${data.body.length} bytes`;
     
@@ -96,8 +312,39 @@ function updateRequestDetails(data) {
     // Update Headers tab
     updateHeadersTab(data.headers);
     
-    // Update Raw tab
-    updateRawTab(data);
+    // Update Query Params tab
+    updateQueryParamsTab(data.query_params);
+}
+
+function updateQueryParamsTab(queryParams) {
+    const queryTable = document.getElementById('query-table');
+    if (!queryTable) return;
+    
+    const tbody = queryTable.querySelector('tbody');
+    const queryCount = document.getElementById('query-count');
+    
+    const params = queryParams || {};
+    const paramEntries = Object.entries(params);
+    
+    if (queryCount) {
+        queryCount.textContent = paramEntries.length;
+    }
+    
+    tbody.innerHTML = '';
+    
+    if (paramEntries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2" class="empty-message">No query parameters</td></tr>';
+        return;
+    }
+    
+    paramEntries.forEach(([key, value]) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${escapeHtml(key)}</td>
+            <td>${escapeHtml(value)}</td>
+        `;
+        tbody.appendChild(row);
+    });
 }
 
 function updateBodyTab(body) {
@@ -124,15 +371,24 @@ function updateBodyTab(body) {
 }
 
 function updateHeadersTab(headers) {
+    console.log('Updating headers tab:', headers);
+    
     const headersTable = document.getElementById('headers-table');
+    if (!headersTable) {
+        console.error('Headers table not found');
+        return;
+    }
+    
     const tbody = headersTable.querySelector('tbody');
     const headersCount = document.getElementById('headers-count');
     const headersContentText = document.getElementById('headers-content-text');
     
     tbody.innerHTML = '';
     
-    const headerEntries = Object.entries(headers);
-    headersCount.textContent = headerEntries.length;
+    const headerEntries = Object.entries(headers || {});
+    if (headersCount) {
+        headersCount.textContent = headerEntries.length;
+    }
     
     // Update hidden text element for copy button
     if (headersContentText) {
@@ -152,18 +408,8 @@ function updateHeadersTab(headers) {
         `;
         tbody.appendChild(row);
     });
-}
-
-function updateRawTab(data) {
-    const rawContent = document.getElementById('raw-content');
-    const rawContentText = document.getElementById('raw-content-text');
-    const codeElement = rawContent.querySelector('code') || rawContent;
     
-    const raw = `Headers:\n${JSON.stringify(data.headers, null, 2)}\n\nBody:\n${data.body}`;
-    codeElement.textContent = raw;
-    if (rawContentText) {
-        rawContentText.textContent = raw;
-    }
+    console.log('Headers table updated with', headerEntries.length, 'entries');
 }
 
 function highlightJSON(element) {
@@ -209,6 +455,17 @@ function deleteRequest(requestId) {
             const item = document.querySelector(`[data-request-id="${requestId}"]`);
             if (item) {
                 item.remove();
+                
+                // Update counts
+                const countSpan = document.querySelector('.sidebar-title span');
+                if (countSpan) {
+                    const currentCount = parseInt(countSpan.textContent.match(/\d+/)?.[0] || '1');
+                    countSpan.textContent = `REQUESTS (${Math.max(0, currentCount - 1)})`;
+                }
+                const deleteCount = document.getElementById('delete-count');
+                if (deleteCount) {
+                    deleteCount.textContent = Math.max(0, parseInt(deleteCount.textContent || '1') - 1);
+                }
             }
             
             // Clear details if this was the active request
@@ -354,17 +611,53 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Copy cURL button
-    const copyCurlBtn = document.getElementById('copy-url-btn');
+    // Copy cURL button - now copies selected request's data
+    const copyCurlBtn = document.getElementById('copy-curl-btn');
     if (copyCurlBtn) {
         copyCurlBtn.addEventListener('click', () => {
-            const url = window.location.origin + '/' + document.querySelector('.endpoint-url').textContent.replace('/', '');
-            const curl = `curl -X POST "${url}" -H "Content-Type: application/json" -d '{"test": "data"}'`;
+            let url = window.location.origin + '/' + document.querySelector('.endpoint-url').textContent.replace('/', '');
+            
+            if (!currentRequestData) {
+                // No request selected - generate sample curl
+                const curl = `curl -X POST "${url}" -H "Content-Type: application/json" -d '{"test": "data"}'`;
+                navigator.clipboard.writeText(curl).then(() => {
+                    copyCurlBtn.innerHTML = '<sl-icon slot="prefix" name="check"></sl-icon>Copied!';
+                    setTimeout(() => {
+                        copyCurlBtn.innerHTML = '<sl-icon slot="prefix" name="terminal"></sl-icon>Copy cURL';
+                    }, 2000);
+                });
+                return;
+            }
+            
+            // Add query params to URL
+            if (currentRequestData.query_params && Object.keys(currentRequestData.query_params).length > 0) {
+                const params = new URLSearchParams(currentRequestData.query_params).toString();
+                url += '?' + params;
+            }
+            
+            // Build curl with actual headers and body
+            let curl = `curl -X POST "${url}"`;
+            
+            // Add headers
+            if (currentRequestData.headers) {
+                Object.entries(currentRequestData.headers).forEach(([key, value]) => {
+                    // Skip some internal headers
+                    if (!['host', 'content-length', 'accept-encoding'].includes(key.toLowerCase())) {
+                        curl += ` \\\n  -H "${key}: ${value}"`;
+                    }
+                });
+            }
+            
+            // Add body
+            if (currentRequestData.body) {
+                const escapedBody = currentRequestData.body.replace(/'/g, "'\\''");
+                curl += ` \\\n  -d '${escapedBody}'`;
+            }
             
             navigator.clipboard.writeText(curl).then(() => {
                 copyCurlBtn.innerHTML = '<sl-icon slot="prefix" name="check"></sl-icon>Copied!';
                 setTimeout(() => {
-                    copyCurlBtn.innerHTML = '<sl-icon slot="prefix" name="clipboard"></sl-icon>Copy cURL';
+                    copyCurlBtn.innerHTML = '<sl-icon slot="prefix" name="terminal"></sl-icon>Copy cURL';
                 }, 2000);
             });
         });

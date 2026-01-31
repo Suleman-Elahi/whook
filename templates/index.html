@@ -25,7 +25,7 @@
             <sl-dropdown>
                 <sl-button slot="trigger" caret variant="default" size="medium">
                     {% if user.picture %}
-                    <img src="{{ user.picture }}" alt="{{ user.name }}" class="user-avatar" slot="prefix">
+                    <img src="{{ user.picture }}" alt="{{ user.name }}" class="user-avatar" slot="prefix" referrerpolicy="no-referrer">
                     {% else %}
                     <sl-icon slot="prefix" name="person-circle"></sl-icon>
                     {% endif %}
@@ -37,7 +37,7 @@
                         {{ user.email }}
                     </sl-menu-item>
                     <sl-divider></sl-divider>
-                    <sl-menu-item href="/logout">
+                    <sl-menu-item onclick="window.location.href='/logout'">
                         <sl-icon slot="prefix" name="box-arrow-right"></sl-icon>
                         Logout
                     </sl-menu-item>
@@ -120,7 +120,7 @@
                     <div class="webhook-card-footer">
                         <div class="webhook-stat">
                             <sl-icon name="clock-history"></sl-icon>
-                            <span>Last activity: <strong>Just now</strong></span>
+                            <span>Last activity: <strong class="last-activity-time" {% if webhook.last_activity %}data-utc="{{ webhook.last_activity.isoformat() }}Z"{% endif %}>{% if webhook.last_activity %}{{ webhook.last_activity.strftime('%b %d, %Y %H:%M') }}{% else %}Never{% endif %}</strong></span>
                         </div>
                         <div class="webhook-stat">
                             <sl-icon name="check-circle"></sl-icon>
