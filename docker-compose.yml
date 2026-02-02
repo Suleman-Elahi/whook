@@ -1,6 +1,30 @@
-version: '3.8'
+# USAGE:
+# PostgreSQL: docker compose --profile postgres up -d
+# MariaDB:    docker compose --profile mysql up -d
+# Redis only: docker compose up -d
+# Full stack: docker compose --profile postgres up -d (or --profile mysql)
 
 services:
+  # Whook Application (always starts)
+  app:
+    build: .
+    container_name: whook_app
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://webhook_user:webhook_pass@postgres:5432/webhooks_db}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-key}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - REDIRECT_URI=${REDIRECT_URI:-http://localhost:5000/auth/callback}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
@@ -19,8 +43,10 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    profiles:
+      - postgres
 
-  # MariaDB Database (alternative to PostgreSQL)
+  # MariaDB Database
   mariadb:
     image: mariadb:11
     container_name: whook_mariadb
@@ -42,7 +68,7 @@ services:
     profiles:
       - mysql
 
-  # Redis (required for all setups)
+  # Redis (always started - required for background jobs)
   redis:
     image: redis:7-alpine
     container_name: whook_redis
@@ -58,29 +84,10 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # pgAdmin for PostgreSQL management (optional)
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: whook_pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@webhooks.local
-      PGADMIN_DEFAULT_PASSWORD: admin
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-    ports:
-      - "5050:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      - postgres
-    restart: unless-stopped
-    profiles:
-      - tools
-
 volumes:
   postgres_data:
   mariadb_data:
   redis_data:
-  pgadmin_data:
 
 networks:
   default:

@@ -66,10 +66,16 @@ function addNewRequestToList(data) {
         emptyState.remove();
     }
     
-    // Format timestamp
-    const timestamp = new Date(data.timestamp);
-    const timeStr = timestamp.toLocaleTimeString('en-US', { hour12: false });
-    const dateStr = timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    // Format timestamp - convert UTC to local time
+    const timestamp = new Date(data.timestamp + (data.timestamp.endsWith('Z') ? '' : 'Z'));
+    const timeStr = timestamp.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
     
     // Create new request item
     const newItem = document.createElement('div');
@@ -78,21 +84,19 @@ function addNewRequestToList(data) {
     newItem.setAttribute('data-status', '200');
     newItem.onclick = function() { showRequest(data.request_id); };
     
+    const bodySize = data.body_length || '--';
+    
     newItem.innerHTML = `
         <div class="request-header">
             <sl-badge variant="primary" size="small">POST</sl-badge>
             <sl-badge variant="success" size="small" class="status-badge">200 OK</sl-badge>
-            <span class="request-time">${dateStr}, ${timeStr}</span>
+            <span class="request-time">${timeStr}</span>
         </div>
         <div class="request-path">/${data.webhook_url}</div>
         <div class="request-meta">
             <span class="meta-item">
-                <sl-icon name="clock"></sl-icon>
-                ${timeStr}
-            </span>
-            <span class="meta-item">
                 <sl-icon name="hdd"></sl-icon>
-                -- bytes
+                ${bodySize} bytes
             </span>
             <sl-icon-button name="trash" label="Delete" class="delete-request-btn" onclick="event.stopPropagation(); deleteRequest(${data.request_id})"></sl-icon-button>
         </div>
@@ -194,9 +198,7 @@ function loadMoreRequests() {
                 newItem.setAttribute('data-status', '200');
                 newItem.onclick = function() { showRequest(req.id); };
                 
-                const timestamp = req.timestamp ? new Date(req.timestamp) : null;
-                const dateTimeStr = timestamp ? formatLocalDateTime(req.timestamp) : 'Unknown';
-                const timeStr = timestamp ? formatLocalTime(req.timestamp) : '--';
+                const dateTimeStr = req.timestamp ? formatLocalDateTime(req.timestamp) : 'Unknown';
                 
                 newItem.innerHTML = `
                     <div class="request-header">
@@ -206,10 +208,6 @@ function loadMoreRequests() {
                     </div>
                     <div class="request-path">/${webhookUrl}</div>
                     <div class="request-meta">
-                        <span class="meta-item">
-                            <sl-icon name="clock"></sl-icon>
-                            <span class="meta-time">${timeStr}</span>
-                        </span>
                         <span class="meta-item">
                             <sl-icon name="hdd"></sl-icon>
                             ${req.body_length} bytes

@@ -74,10 +74,6 @@
                         <div class="request-path">/{{ webhook.url }}</div>
                         <div class="request-meta">
                             <span class="meta-item">
-                                <sl-icon name="clock"></sl-icon>
-                                <span class="meta-time" {% if req.timestamp %}data-utc="{{ req.timestamp.isoformat() }}Z"{% endif %}>{{ req.timestamp.strftime('%H:%M:%S') if req.timestamp else '--' }}</span>
-                            </span>
-                            <span class="meta-item">
                                 <sl-icon name="hdd"></sl-icon>
                                 {{ req.body|length }} bytes
                             </span>

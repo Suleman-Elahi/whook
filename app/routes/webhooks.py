@@ -19,11 +19,9 @@ async def index(request: Request):
     if not user:
         return RedirectResponse(url="/login")
     
-    print("\n=== Rendering index page ===")
     try:
         db = SessionLocal()
         webhooks = db.query(Webhook).filter(Webhook.user_id == user['id']).all()
-        print(f"Found {len(webhooks)} webhooks for user {user['email']}")
         
         for webhook in webhooks:
             count = db.query(WebhookRequest).filter(WebhookRequest.webhook_id == webhook.id).count()
@@ -35,8 +33,6 @@ async def index(request: Request):
                 .order_by(WebhookRequest.timestamp.desc())\
                 .first()
             webhook.last_activity = last_request[0] if last_request else None
-            
-            print(f"Webhook {webhook.id} ({webhook.name}): {count} requests, last activity: {webhook.last_activity}")
         
         db.close()
         return templates.TemplateResponse("index.html", {
@@ -46,9 +42,6 @@ async def index(request: Request):
         })
         
     except Exception as e:
-        import traceback
-        print(f"Error in index route: {str(e)}")
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -244,23 +237,14 @@ async def webhook_settings_post(webhook_id: str, request: Request):
 @router.post("/{path:path}")
 async def handle_webhook(path: str, request: Request):
     """Handle incoming webhook - no auth required"""
-    print(f"\n=== New Webhook Request ===")
-    print(f"Path: {path}")
-    print(f"Headers: {dict(request.headers)}")
-    print(f"Query params: {dict(request.query_params)}")
-    
     db = SessionLocal()
     
     webhook = db.query(Webhook).filter(Webhook.url == path).first()
     if not webhook:
-        print(f"Webhook not found for path: {path}")
         db.close()
         raise HTTPException(status_code=404, detail="Webhook not found")
-        
-    print(f"Found webhook: {webhook.name} (ID: {webhook.id}, Active: {webhook.status})")
     
     if not webhook.status:
-        print("Webhook is paused")
         db.close()
         return JSONResponse({"message": "Webhook is paused"}, status_code=200)
     
@@ -269,8 +253,6 @@ async def handle_webhook(path: str, request: Request):
         query_params = dict(request.query_params)
         body = await request.body()
         body_text = body.decode('utf-8') if body else ""
-        
-        print(f"Request body: {body_text}")
 
         job = queue.enqueue(
             'worker.process_webhook_in_background',
@@ -282,8 +264,6 @@ async def handle_webhook(path: str, request: Request):
             result_ttl=3600
         )
         
-        print(f"Enqueued job {job.id} for webhook {webhook.id}")
-        
         db.close()
         
         return JSONResponse({
@@ -293,9 +273,6 @@ async def handle_webhook(path: str, request: Request):
         }, status_code=202)
         
     except Exception as e:
-        import traceback
-        print(f"Error enqueuing webhook: {str(e)}")
-        traceback.print_exc()
         db.close()
         raise HTTPException(status_code=500, detail="Failed to process webhook")
 
@@ -310,7 +287,6 @@ async def show_webhook(path: str, request: Request):
     if not user:
         return RedirectResponse(url="/login")
     
-    print(f"\n=== Showing webhook details for path: {path} ===")
     try:
         db = SessionLocal()
         
@@ -320,11 +296,8 @@ async def show_webhook(path: str, request: Request):
         ).first()
         
         if not webhook:
-            print(f"Webhook not found for path: {path} or user doesn't own it")
             db.close()
             raise HTTPException(status_code=404, detail="Webhook not found")
-            
-        print(f"Found webhook: {webhook.name} (ID: {webhook.id})")
         
         # Get total count
         total_requests = db.query(WebhookRequest)\
@@ -338,12 +311,9 @@ async def show_webhook(path: str, request: Request):
                           .limit(100)\
                           .all()
         
-        print(f"Found {len(requests_list)}/{total_requests} requests for webhook {webhook.id}")
-        
         for req in requests_list:
             try:
                 req.headers = json.loads(req.headers)
-                print(f"Request {req.id} headers: {req.headers}")
             except json.JSONDecodeError:
                 req.headers = {}
         
@@ -359,9 +329,6 @@ async def show_webhook(path: str, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        print(f"Error in show_webhook: {str(e)}")
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -449,7 +416,6 @@ async def get_results(job_id: str):
     job = queue.fetch_job(job_id)
     
     if job:
-        print(type(job), job)
         return JSONResponse({"status": "completed", "job": str(job)})
     else:
         return JSONResponse({"status": "pending"}, status_code=202)
