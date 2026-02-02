@@ -10,7 +10,8 @@ from RestrictedPython.Guards import full_write_guard
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
+import time
+import csv
 # Load environment variables
 load_dotenv()
 
@@ -43,7 +44,7 @@ else:
         DATABASE_URL,
         pool_size=worker_pool_size,
         max_overflow=worker_max_overflow,
-        pool_pre_ping=True,  # Test connections before using
+        pool_pre_ping=True,  # Test connectionss before using
         pool_recycle=300,    # Recycle connections every 5 minutes
         pool_timeout=30,     # Wait up to 30 seconds for a connection
         echo=False
@@ -155,6 +156,11 @@ def process_webhook_in_background(webhook_id, headers, body, query_params=None):
                 data = json.loads(body)
                 
                 script_globals = safe_globals.copy()
+                script_globals.update({
+                    'json': json,
+                    'time': time,
+                    'csv': csv
+                    })
                 script_globals['_write_'] = full_write_guard
 
                 byte_code = compile_restricted(transformation_script, '<string>', 'exec')
